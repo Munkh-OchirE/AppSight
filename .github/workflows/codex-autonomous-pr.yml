@@ -1,0 +1,208 @@
+name: Codex autonomous PR
+
+on:
+  schedule:
+    - cron: "0 20 * * 1" # Weekly Monday 20:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: codex-autonomous-pr
+  cancel-in-progress: false
+
+jobs:
+  autonomous_pr:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Create Codex branch
+        run: |
+          BRANCH="codex/auto-${{ github.run_id }}"
+          git checkout -b "$BRANCH"
+          echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
+
+      - name: Codex find and fix
+        id: codex_find_fix
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          sandbox: workspace-write
+          output-file: codex-summary.md
+          prompt: |
+            You are running autonomous maintenance for this repository.
+
+            Read AGENTS.md first.
+
+            Goal:
+            Find one real, low-risk issue in the repository, fix it, and leave the repository ready for testing.
+
+            Rules:
+            - Choose only one issue.
+            - The issue must be evidence-based from the codebase.
+            - Prefer bugs, failing tests, lint/type/build issues, missing validation, small documentation problems, or small maintainability issues.
+            - Do not make broad refactors.
+            - Do not touch restricted areas listed in AGENTS.md.
+            - Do not change authentication, authorization, secrets, deployment, database migrations, billing, or security controls.
+            - Do not introduce new dependencies unless absolutely necessary.
+            - If there is no safe issue, make no code changes and explain why.
+            - Add or update tests where practical.
+            - Keep the change small and focused.
+            - Never merge anything.
+
+            Output summary:
+            - Issue found
+            - Evidence
+            - Risk level
+            - Files changed
+            - Tests expected to run
+
+      - name: Test attempt 1
+        id: test1
+        run: |
+          set +e
+          bash .github/scripts/codex-test.sh 2>&1 | tee codex-test-output.txt
+          status=${PIPESTATUS[0]}
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Codex fix attempt 1
+        if: steps.test1.outputs.status != '0'
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          sandbox: workspace-write
+          output-file: codex-fix1-summary.md
+          prompt: |
+            The validation script failed after the autonomous change.
+
+            Read:
+            - AGENTS.md
+            - codex-test-output.txt
+            - the current git diff
+
+            Fix only the test/build/lint failure caused by the current change.
+
+            Rules:
+            - Keep the fix minimal.
+            - Do not broaden scope.
+            - Do not touch restricted areas.
+            - Do not add dependencies unless absolutely necessary.
+            - Never merge anything.
+
+      - name: Test attempt 2
+        if: steps.test1.outputs.status != '0'
+        id: test2
+        run: |
+          set +e
+          bash .github/scripts/codex-test.sh 2>&1 | tee codex-test-output.txt
+          status=${PIPESTATUS[0]}
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Codex fix attempt 2
+        if: steps.test1.outputs.status != '0' && steps.test2.outputs.status != '0'
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          sandbox: workspace-write
+          output-file: codex-fix2-summary.md
+          prompt: |
+            The validation script failed again.
+
+            Make one final minimal fix attempt.
+
+            Rules:
+            - Fix only the failing check.
+            - Do not redesign the solution.
+            - Do not broaden scope.
+            - If unsafe, leave the code unchanged and explain why.
+            - Never merge anything.
+
+      - name: Test attempt 3
+        if: steps.test1.outputs.status != '0' && steps.test2.outputs.status != '0'
+        id: test3
+        run: |
+          set +e
+          bash .github/scripts/codex-test.sh 2>&1 | tee codex-test-output.txt
+          status=${PIPESTATUS[0]}
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Stop if tests still fail
+        if: steps.test1.outputs.status != '0' && steps.test2.outputs.status != '0' && steps.test3.outputs.status != '0'
+        run: |
+          echo "Tests still failed after two Codex fix attempts."
+          exit 1
+
+      - name: Clean Codex output files
+        run: |
+          rm -f codex-summary.md
+          rm -f codex-fix1-summary.md
+          rm -f codex-fix2-summary.md
+          rm -f codex-test-output.txt
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit and push changes
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "codex-autonomous-bot"
+          git config user.email "codex-autonomous-bot@users.noreply.github.com"
+
+          git add -A
+          git commit -m "Codex autonomous maintenance"
+          git push -u origin "$BRANCH"
+
+      - name: Open pull request
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr create \
+            --title "Codex autonomous maintenance" \
+            --body "## Summary
+
+            This PR was created by the Codex autonomous maintenance loop.
+
+            ## Safety controls
+
+            - Codex selected one low-risk issue only
+            - Restricted areas from AGENTS.md should not be changed
+            - Validation script passed before PR creation
+            - Human merge is required
+
+            ## Human review required
+
+            Please review this PR manually before merging." \
+            --base main \
+            --head "$BRANCH"
+
+      - name: Comment if no safe change was made
+        if: steps.changes.outputs.changed == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create \
+            --title "Codex autonomous run: no safe change found" \
+            --body "Codex ran but did not make code changes. This usually means no low-risk, evidence-based issue was found, or the available findings touched restricted areas."
