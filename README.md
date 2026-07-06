@@ -1,3 +1,14 @@
+## Getting Started
+
+1. Clone the repository.
+2. Run `pnpm install` to install dependencies.
+3. Copy the template environment file:
+   ```bash
+   cp .env.example .env
+   ```
+4. Open the new `.env` file and insert your own API keys.
+5. Start the local server using `pnpm dev`.
+
 # Application Risk Snapshot Planning Notes
 
 This project follows the supplied Application Risk Snapshot README and the local planning documents. This root README records the targeted planning corrections that must be carried into implementation.
