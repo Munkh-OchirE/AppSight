@@ -49,3 +49,46 @@ Before finishing, run:
 
 ```bash
 bash .github/scripts/codex-test.sh
+
+## Pull request rules
+
+Every PR must include:
+
+- Summary
+- Issue found
+- Evidence
+- What changed
+- Tests run
+- Risk level
+- Files changed
+- Anything that needs human review
+
+## Merge rule
+
+Codex must never merge pull requests.
+
+Human merge is required.
+
+Codex may:
+- Create branches
+- Commit changes to Codex branches
+- Open pull requests
+- Update pull requests after review or failed tests
+- Comment on pull requests
+
+Codex must not:
+- Push directly to main
+- Merge pull requests
+- Enable auto-merge
+- Delete protected branches
+
+## Definition of done
+
+A task is done only when:
+
+- The issue is real and evidence-based.
+- The fix is small and focused.
+- Tests/build/lint pass where available.
+- No secrets are committed.
+- No restricted areas were changed.
+- A pull request is ready for human review.
