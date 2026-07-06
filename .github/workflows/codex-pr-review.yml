@@ -1,0 +1,49 @@
+name: Codex PR review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  codex_review:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v5
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Codex review
+        id: run_codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          sandbox: read-only
+          output-file: codex-review.md
+          prompt: |
+            Review this pull request.
+
+            Read AGENTS.md first.
+
+            Rules:
+            - Do not modify files.
+            - Focus on serious bugs, security issues, missing validation, broken logic, risky changes, and missing tests.
+            - Check whether the PR touches restricted areas from AGENTS.md.
+            - Do not nitpick style unless it affects correctness, security, or maintainability.
+            - If the PR looks safe, say so clearly.
+            - If the PR is risky, say BLOCK at the top and explain why.
+
+      - name: Comment review result
+        if: hashFiles('codex-review.md') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment "${{ github.event.pull_request.number }}" --body-file codex-review.md
