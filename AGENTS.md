@@ -2,43 +2,50 @@
 
 ## Project purpose
 
-This repository contains the AppSight application. The goal is to keep the application stable, secure, maintainable, and easy to extend.
+This repository contains the application. Codex may help maintain it by finding real issues, fixing bugs, improving tests, improving documentation, and implementing small low-risk improvements.
 
-Codex should help with:
-- Finding bugs
-- Suggesting improvements
-- Creating GitHub issues
-- Implementing approved issues
-- Improving tests and documentation
-- Creating small, reviewable pull requests
+## Autonomous maintenance rules
 
-## Important workflow rules
+Codex may autonomously find and fix only one low-risk issue per run.
 
-- Do not push directly to `main`.
-- Do not merge pull requests.
-- Work on one issue or task at a time.
-- Keep changes small and focused.
-- Do not rewrite unrelated code.
-- Do not change application behaviour unless the task explicitly asks for it.
-- Do not introduce new dependencies unless clearly justified.
-- Do not delete files unless clearly required.
-- Do not commit secrets, API keys, tokens, passwords, private keys, or `.env` files.
+Allowed autonomous work:
+- Small bug fixes
+- Broken tests
+- Lint/type/build fixes
+- Documentation fixes
+- Minor UI fixes
+- Small validation improvements
+- Small refactors with tests
 
-## Before making changes
+Do not autonomously change:
+- Authentication
+- Authorization
+- Secrets or environment variable handling
+- Database migrations
+- Destructive data logic
+- Deployment infrastructure
+- Payment or billing logic
+- Security controls
+- Encryption
+- Large architecture
+- Public API contracts
 
-Before editing code, Codex must:
+If a finding touches a restricted area, report it only and do not modify code.
 
-1. Read this `AGENTS.md`.
-2. Read the related GitHub issue or user request.
-3. Inspect the relevant code.
-4. Identify the root cause or implementation approach.
-5. Confirm the change can be made safely and narrowly.
+## Issue discovery rules
 
-If the task is unclear, Codex should ask for clarification instead of guessing.
+When asked to find and fix an issue:
+1. Inspect the repository.
+2. Identify real issues based on code evidence.
+3. Choose only one issue per run.
+4. Prefer the smallest safe fix.
+5. Do not invent vague improvements.
+6. Do not make broad refactors.
+7. Do not change unrelated files.
 
-## Branch naming
+## Testing
 
-Use this branch naming pattern:
+Before finishing, run:
 
-```text
-codex/issue-<issue-number>-short-description
+```bash
+bash .github/scripts/codex-test.sh
