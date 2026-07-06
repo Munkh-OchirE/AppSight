@@ -1,0 +1,149 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Assessment {
+  id                     String   @id @default(cuid())
+  applicationName        String
+  vendorName             String
+  applicationUrl         String?
+  vendorWebsite          String?
+  trustCentreUrl         String?
+  description            String
+  businessOwner          String?
+  procurementStage       String?
+  vendorStatus           String?
+  criticality            String?
+  assessmentLevel        String?
+  riskScore              Int?
+  riskRating             String?
+  status                 String   @default("draft")
+
+  decisionStatus         String?
+  decisionBy             String?
+  decisionAt             DateTime?
+  decisionJustification  String?
+  rejectionReason        String?
+  remediationActions     String?
+  rejectionDueDate       DateTime?
+  rejectionOwner         String?
+  approvedWithExceptions Boolean  @default(false)
+
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  answers                Answer[]
+  evidenceItems          EvidenceItem[]
+  riskFindings           RiskFinding[]
+  llmOutputs             LlmOutput[]
+  reports                Report[]
+  auditLogs              AuditLog[]
+}
+
+model Answer {
+  id           String   @id @default(cuid())
+  assessmentId String
+  section      String
+  field        String
+  value        String
+  state        String
+  confidence   String?
+  source       String?
+  confirmed    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@unique([assessmentId, section, field])
+  @@index([assessmentId])
+}
+
+model EvidenceItem {
+  id                String   @id @default(cuid())
+  assessmentId      String
+  type              String
+  status            String
+  confidence        String?
+  sourceUrl         String?
+  sourceTextSnippet String?
+  uploadedFileName  String?
+  issuer            String?
+  issueDate         String?
+  expiryDate        String?
+  scope             String?
+  notes             String?
+  recommendedAction String?
+  isRequired        Boolean  @default(false)
+  requirementLevel  String?
+  verified          Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentId])
+  @@index([assessmentId, type])
+}
+
+model RiskFinding {
+  id             String   @id @default(cuid())
+  assessmentId   String
+  title          String
+  severity       String
+  category       String
+  scoreImpact    Int
+  reason         String
+  recommendation String?
+  createdAt      DateTime @default(now())
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentId])
+}
+
+model LlmOutput {
+  id              String   @id @default(cuid())
+  assessmentId    String
+  type            String
+  provider        String
+  model           String
+  inputJson       String
+  outputJson      String
+  checkpointsJson String?
+  createdAt       DateTime @default(now())
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentId])
+}
+
+model Report {
+  id           String   @id @default(cuid())
+  assessmentId String
+  format       String
+  content      String
+  createdAt    DateTime @default(now())
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentId])
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  assessmentId String
+  action       String
+  actor        String
+  detailsJson  String
+  createdAt    DateTime @default(now())
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentId])
+}
