@@ -16,6 +16,15 @@ export type QuestionDefinition = {
   };
 };
 
+export const procurementStageOptions = [
+  "Unknown",
+  "Idea",
+  "Evaluation",
+  "Pilot",
+  "Procurement",
+  "Renewal"
+];
+
 export const accessOptionFields = [
   "noSystemAccess",
   "ssoAccess",
@@ -68,7 +77,7 @@ export const questions: QuestionDefinition[] = [
     field: "procurementStage",
     label: "What procurement stage is this assessment for?",
     type: "select",
-    options: ["Unknown", "Idea", "Evaluation", "Pilot", "Procurement", "Renewal"]
+    options: procurementStageOptions
   },
   {
     id: "vendor_profile_vendor_status",

@@ -99,6 +99,7 @@ export function DraftReview({
       }
 
       setMessage(`AI intake saved ${payload.answersStored} draft fields.`);
+      window.dispatchEvent(new Event("assessment:risk-updated"));
       router.refresh();
     } catch {
       setError("AI intake failed.");
@@ -131,6 +132,7 @@ export function DraftReview({
       setMessage(
         `Evidence discovery fetched ${payload.pagesFetched} pages and stored ${payload.evidenceItems.length} evidence items.`
       );
+      window.dispatchEvent(new Event("assessment:risk-updated"));
       router.refresh();
     } catch {
       setError("Evidence discovery failed.");
@@ -170,6 +172,7 @@ export function DraftReview({
       }
 
       setMessage("Answer confirmed.");
+      window.dispatchEvent(new Event("assessment:risk-updated"));
       router.refresh();
     } catch {
       setError("Unable to confirm answer.");
@@ -206,6 +209,7 @@ export function DraftReview({
       }
 
       setMessage("Evidence marked as reviewer verified.");
+      window.dispatchEvent(new Event("assessment:risk-updated"));
       router.refresh();
     } catch {
       setError("Unable to verify evidence.");

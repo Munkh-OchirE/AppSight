@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { procurementStageOptions } from "@/config/questions";
 
 type FormState = {
   applicationName: string;
@@ -16,6 +17,24 @@ type FormState = {
   vendorStatus: string;
 };
 
+type ApplicationSearchResult = {
+  id: string;
+  title: string;
+  url: string;
+  displayUrl: string;
+  snippet?: string;
+};
+
+type ApplicationDetails = {
+  applicationName?: string;
+  vendorName?: string;
+  applicationUrl?: string;
+  vendorWebsite?: string;
+  trustCentreUrl?: string;
+  description?: string;
+  criticality?: string;
+};
+
 const initialState: FormState = {
   applicationName: "",
   vendorName: "",
@@ -24,19 +43,143 @@ const initialState: FormState = {
   trustCentreUrl: "",
   description: "",
   businessOwner: "",
-  criticality: "",
-  procurementStage: "",
-  vendorStatus: ""
+  criticality: "Medium",
+  procurementStage: "Idea",
+  vendorStatus: "new"
 };
 
 export default function NewAssessmentPage() {
   const router = useRouter();
   const [form, setForm] = useState<FormState>(initialState);
   const [error, setError] = useState<string | null>(null);
+  const [lookupMessage, setLookupMessage] = useState<string | null>(null);
+  const [searchResults, setSearchResults] = useState<ApplicationSearchResult[]>([]);
+  const [selectedApplicationUrl, setSelectedApplicationUrl] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const suppressNextSearch = useRef(false);
 
   function updateField(field: keyof FormState, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
+
+    if (field === "applicationName") {
+      setLookupMessage(null);
+      setSearchResults([]);
+      setSelectedApplicationUrl("");
+    }
+  }
+
+  useEffect(() => {
+    const applicationName = form.applicationName.trim();
+
+    if (suppressNextSearch.current) {
+      suppressNextSearch.current = false;
+      return;
+    }
+
+    if (applicationName.length < 3) {
+      setIsSearching(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setError(null);
+      setLookupMessage(null);
+      setIsSearching(true);
+
+      try {
+        const response = await fetch("/api/applications/lookup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ applicationName }),
+          signal: controller.signal
+        });
+        const payload = await response.json();
+
+        if (!response.ok) {
+          setLookupMessage(payload.error ?? "Unable to search for this application.");
+          return;
+        }
+
+        const results = (payload.results ?? []) as ApplicationSearchResult[];
+        setSearchResults(results);
+        setSelectedApplicationUrl("");
+        setLookupMessage(
+          results.length > 0
+            ? "Select the matching application to load its details."
+            : "No matching applications were found online."
+        );
+      } catch (lookupError) {
+        if (!(lookupError instanceof DOMException && lookupError.name === "AbortError")) {
+          setLookupMessage("Unable to search online. Check the server and try again.");
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsSearching(false);
+        }
+      }
+    }, 700);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [form.applicationName]);
+
+  async function loadApplicationDetails(selectedUrl = selectedApplicationUrl) {
+    const applicationName = form.applicationName.trim();
+
+    if (!applicationName || !selectedUrl) {
+      return;
+    }
+
+    setError(null);
+    setLookupMessage(null);
+    setIsLoadingDetails(true);
+
+    try {
+      const response = await fetch("/api/applications/lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          applicationName,
+          selectedUrl
+        })
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        setLookupMessage(payload.error ?? "Unable to load application details.");
+        return;
+      }
+
+      const details = (payload.details ?? {}) as ApplicationDetails;
+      const resolvedApplicationName = details.applicationName ?? applicationName;
+
+      if (resolvedApplicationName !== form.applicationName) {
+        suppressNextSearch.current = true;
+      }
+
+      setForm((current) => ({
+        ...current,
+        applicationName: resolvedApplicationName,
+        vendorName: details.vendorName ?? current.vendorName,
+        applicationUrl: details.applicationUrl ?? current.applicationUrl,
+        vendorWebsite: details.vendorWebsite ?? current.vendorWebsite,
+        trustCentreUrl: details.trustCentreUrl ?? current.trustCentreUrl,
+        description: details.description ?? current.description,
+        criticality: details.criticality ?? current.criticality,
+        procurementStage: "Idea",
+        vendorStatus: "new"
+      }));
+      setLookupMessage("Application details were loaded. Review them before starting the assessment.");
+    } catch {
+      setLookupMessage("Unable to load application details. Check the server and try again.");
+    } finally {
+      setIsLoadingDetails(false);
+    }
   }
 
   async function submitAssessment(event: FormEvent<HTMLFormElement>) {
@@ -81,147 +224,179 @@ export default function NewAssessmentPage() {
 
         <form onSubmit={submitAssessment} className="rounded-md border border-line bg-white p-5">
           <div className="grid gap-4 md:grid-cols-2">
-            <Field
-              label="Application name"
-              value={form.applicationName}
-              required
-              onChange={(value) => updateField("applicationName", value)}
-            />
-            <Field
-              label="Vendor name"
-              value={form.vendorName}
-              required
-              onChange={(value) => updateField("vendorName", value)}
-            />
-            <Field
-              label="Application/product URL"
-              value={form.applicationUrl}
-              type="url"
-              onChange={(value) => updateField("applicationUrl", value)}
-            />
-            <Field
-              label="Vendor website"
-              value={form.vendorWebsite}
-              type="url"
-              onChange={(value) => updateField("vendorWebsite", value)}
-            />
-            <Field
-              label="Trust centre/security page URL"
-              value={form.trustCentreUrl}
-              type="url"
-              onChange={(value) => updateField("trustCentreUrl", value)}
-            />
-            <Field
-              label="Business owner"
-              value={form.businessOwner}
-              onChange={(value) => updateField("businessOwner", value)}
-            />
-            <SelectField
-              label="Criticality to business"
-              value={form.criticality}
-              options={["", "Low", "Medium", "High", "Critical"]}
-              onChange={(value) => updateField("criticality", value)}
-            />
-            <Field
-              label="Procurement stage"
-              value={form.procurementStage}
-              onChange={(value) => updateField("procurementStage", value)}
-            />
-            <SelectField
-              label="Vendor status"
-              value={form.vendorStatus}
-              options={["", "new", "existing"]}
-              onChange={(value) => updateField("vendorStatus", value)}
-            />
-          </div>
+            <div className="md:col-span-2">
+              <label className="block">
+                <span className="text-sm font-medium text-slate-700">Application name</span>
+                <div className="relative mt-1">
+                  <input
+                    required
+                    type="text"
+                    value={form.applicationName}
+                    onChange={(event) => updateField("applicationName", event.target.value)}
+                    className="h-10 w-full rounded-md border border-line px-3 pr-28 text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-blue-100"
+                  />
+                  {isSearching ? (
+                    <span className="absolute inset-y-0 right-3 inline-flex items-center text-xs font-medium text-slate-500">
+                      Searching online...
+                    </span>
+                  ) : null}
+                </div>
+              </label>
 
-          <label className="mt-4 block">
-            <span className="text-sm font-medium text-slate-700">
-              Short description of intended use
-            </span>
-            <textarea
-              required
-              value={form.description}
-              onChange={(event) => updateField("description", event.target.value)}
-              rows={6}
-              className="mt-1 w-full rounded-md border border-line px-3 py-2 text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-blue-100"
-              placeholder="We want to use a SaaS finance platform for invoice approvals. Users will log in with Entra ID SSO. It will integrate with our finance system using API and process supplier and invoice data."
-            />
-          </label>
+              {searchResults.length > 0 ? (
+                <div className="mt-3 rounded-md border border-line bg-slate-50 p-3">
+                  <label className="block">
+                    <span className="text-sm font-medium text-slate-700">
+                      Matching applications
+                    </span>
+                    <select
+                      value={selectedApplicationUrl}
+                      onChange={(event) => {
+                        const selectedUrl = event.target.value;
+                        setSelectedApplicationUrl(selectedUrl);
+                        if (selectedUrl) {
+                          void loadApplicationDetails(selectedUrl);
+                        }
+                      }}
+                      disabled={isLoadingDetails}
+                      className="mt-1 h-10 w-full rounded-md border border-line bg-white px-3 text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-blue-100"
+                    >
+                      <option value="">
+                        {isLoadingDetails ? "Loading application details..." : "Select an application"}
+                      </option>
+                      {searchResults.map((result) => (
+                        <option key={result.id} value={result.url}>
+                          {result.title} ({result.displayUrl})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              ) : null}
 
-          {error ? (
-            <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-danger">
-              {error}
+              {lookupMessage ? (
+             8ßÏm¢G§²ÚîÆ­yÜsection className={`border px-4 py-3 ${decisionNotice.tone}`} role="status">
+            <p className="text-sm font-semibold">{decisionNotice.title}</p>
+            <p className="mt-1 text-sm">{decisionNotice.message}</p>
+          </section>
+        ) : null}
+
+        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {statCards.map(([label, value]) => (
+            <div key={label} className="rounded-md border border-line bg-white p-4">
+              <p className="text-sm text-slate-500">{label}</p>
+              <p className="mt-2 text-2xl font-semibold text-ink">{value}</p>
             </div>
-          ) : null}
+          ))}
+        </section>
 
-          <div className="mt-6 flex justify-end">
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="inline-flex h-11 items-center justify-center rounded-md bg-accent px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isSubmitting ? "Creating..." : "Start assessment"}
-            </button>
+        <div className="grid gap-6 xl:grid-cols-2">
+          <PortfolioPieChart
+            title="Application status"
+            subtitle="Current assessment workflow distribution"
+            emptyText="No status data is available yet."
+            total={summary.total}
+            data={statusData}
+          />
+          <PortfolioPieChart
+            title="Application risk level"
+            subtitle="Current assessed risk distribution"
+            emptyText="No risk data is available yet."
+            total={summary.total}
+            data={riskData}
+          />
+        </div>
+
+        <section className="overflow-hidden rounded-md border border-line bg-white">
+          <div className="flex items-center justify-between gap-4 border-b border-line px-4 py-3">
+            <div>
+              <h2 className="text-lg font-semibold">Assessment overview</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Sorted by most recently updated
+              </p>
+            </div>
+            <p className="text-sm font-medium text-slate-600">
+              {assessments.length} total
+            </p>
           </div>
-        </form>
+          {assessments.length === 0 ? (
+            <div className="px-4 py-10 text-center text-slate-500">
+              No assessments yet. Start one from the new assessment page.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-line text-sm">
+                <thead className="bg-panel text-left text-slate-600">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Application</th>
+                    <th className="px-4 py-3 font-medium">Vendor</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium">Risk</th>
+                    <th className="px-4 py-3 font-medium">Criticality</th>
+                    <th className="px-4 py-3 font-medium">Procurement stage</th>
+                    <th className="px-4 py-3 font-medium">Business owner</th>
+                    <th className="px-4 py-3 font-medium">Updated</th>
+                    <th className="px-4 py-3 text-right font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  {assessments.map((assessment) => (
+                    <tr key={assessment.id} className="transition hover:bg-slate-50">
+                      <td className="px-4 py-3 font-medium text-ink">
+                        <Link
+                          href={`/assessments/${assessment.id}/draft`}
+                          className="font-semibold text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200"
+                        >
+                          {assessment.applicationName}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">{assessment.vendorName}</td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex whitespace-nowrap rounded-md border px-2 py-1 text-xs font-semibold ${statusTone(assessment.status)}`}
+                        >
+                          {statusLabel(assessment.status)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex whitespace-nowrap rounded-md border px-2 py-1 text-xs font-semibold ${riskTone(assessment.riskRating)}`}
+                        >
+                          {assessment.riskRating
+                            ? `${assessment.riskRating} (${assessment.riskScore ?? 0})`
+                            : "Not scored"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {assessment.criticality ?? "Unknown"}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {assessment.procurementStage ?? "Unknown"}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {assessment.businessOwner ?? "Unassigned"}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {assessment.updatedAt.toLocaleDateString(undefined, {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric"
+                        })}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <DeleteAssessmentButton
+                          assessmentId={assessment.id}
+                          applicationName={assessment.applicationName}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       </div>
     </main>
-  );
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-  required = false,
-  type = "text"
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  required?: boolean;
-  type?: string;
-}) {
-  return (
-    <label className="block">
-      <span className="text-sm font-medium text-slate-700">{label}</span>
-      <input
-        required={required}
-        type={type}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="mt-1 h-10 w-full rounded-md border border-line px-3 text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-blue-100"
-      />
-    </label>
-  );
-}
-
-function SelectField({
-  label,
-  value,
-  options,
-  onChange
-}: {
-  label: string;
-  value: string;
-  options: string[];
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="block">
-      <span className="text-sm font-medium text-slate-700">{label}</span>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="mt-1 h-10 w-full rounded-md border border-line bg-white px-3 text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-blue-100"
-      >
-        {options.map((option) => (
-          <option key={option || "unknown"} value={option}>
-            {option || "Unknown"}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }

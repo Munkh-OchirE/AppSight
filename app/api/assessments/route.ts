@@ -6,6 +6,7 @@ import {
   assessmentCreateSchema,
   formatZodError
 } from "@/lib/validations/assessment";
+import { calculateAndPersistRisk } from "@/lib/risk/riskScoring";
 
 export async function GET() {
   const assessments = await db.assessment.findMany({
@@ -50,7 +51,15 @@ export async function POST(request: Request) {
       return created;
     });
 
-    return NextResponse.json({ assessment }, { status: 201 });
+    await calculateAndPersistRisk(assessment.id);
+    const scoredAssessment = await db.assessment.findUnique({
+      where: { id: assessment.id }
+    });
+
+    return NextResponse.json(
+      { assessment: scoredAssessment ?? assessment },
+      { status: 201 }
+    );
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

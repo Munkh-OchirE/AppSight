@@ -195,6 +195,7 @@ export function DynamicWizard({
       }
 
       setMessage("Questionnaire answers saved.");
+      window.dispatchEvent(new Event("assessment:risk-updated"));
       router.refresh();
     } catch {
       setError("Unable to save questionnaire answers.");

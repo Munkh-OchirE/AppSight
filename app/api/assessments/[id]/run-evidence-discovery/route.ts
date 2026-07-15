@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { runEvidenceDiscovery } from "@/lib/discovery/discoveryService";
 import { formatZodError } from "@/lib/validations/assessment";
+import { calculateAndPersistRisk } from "@/lib/risk/riskScoring";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -40,12 +41,14 @@ export async function POST(request: Request, context: RouteContext) {
       vendorWebsite: input.vendorWebsite ?? assessment.vendorWebsite,
       trustCentreUrl: input.trustCentreUrl ?? assessment.trustCentreUrl
     });
+    const risk = await calculateAndPersistRisk(id);
 
     return NextResponse.json({
       assessmentId: id,
       pagesFetched: result.pagesFetched,
       errors: result.errors,
-      evidenceItems: result.evidenceItems
+      evidenceItems: result.evidenceItems,
+      risk
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

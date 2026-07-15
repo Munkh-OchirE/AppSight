@@ -6,6 +6,7 @@ import {
   formatZodError,
   serializeAnswerValue
 } from "@/lib/validations/assessment";
+import { calculateAndPersistRisk } from "@/lib/risk/riskScoring";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -144,10 +145,13 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Assessment not found." }, { status: 404 });
     }
 
+    const risk = await calculateAndPersistRisk(id);
+
     return NextResponse.json({
       assessment: updated,
       answers: updated.answers,
-      evidenceItems: updated.evidenceItems
+      evidenceItems: updated.evidenceItems,
+      risk
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -170,6 +174,27 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     return NextResponse.json(
       { error: "Unable to update assessment." },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(_request: Request, context: RouteContext) {
+  const { id } = await context.params;
+
+  try {
+    const result = await db.assessment.deleteMany({
+      where: { id }
+    });
+
+    if (result.count === 0) {
+      return NextResponse.json({ error: "Assessment not found." }, { status: 404 });
+    }
+
+    return NextResponse.json({ deleted: true, assessmentId: id });
+  } catch {
+    return NextResponse.json(
+      { error: "Unable to delete assessment." },
       { status: 500 }
     );
   }

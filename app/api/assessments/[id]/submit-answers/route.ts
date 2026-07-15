@@ -8,6 +8,7 @@ import {
 } from "@/lib/dynamicQuestions/questionEngine";
 import { calculateSmartEvidenceRequirements } from "@/lib/evidence/smartEvidenceRequest";
 import { formatZodError, serializeAnswerValue } from "@/lib/validations/assessment";
+import { calculateAndPersistRisk } from "@/lib/risk/riskScoring";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -122,11 +123,13 @@ export async function POST(request: Request, context: RouteContext) {
       answers: updatedAssessment.answers,
       evidenceItems: updatedAssessment.evidenceItems
     });
+    const risk = await calculateAndPersistRisk(id);
 
     return NextResponse.json({
       answers: updatedAssessment.answers,
       visibleQuestions,
-      requiredEvidencePreview
+      requiredEvidencePreview,
+      risk
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

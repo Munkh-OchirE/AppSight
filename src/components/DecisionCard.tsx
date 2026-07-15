@@ -106,6 +106,16 @@ export function DecisionCard({
 
   useEffect(() => {
     void loadReadiness();
+
+    function handleRiskUpdated() {
+      void loadReadiness();
+    }
+
+    window.addEventListener("assessment:risk-updated", handleRiskUpdated);
+
+    return () => {
+      window.removeEventListener("assessment:risk-updated", handleRiskUpdated);
+    };
   }, [assessmentId]);
 
   async function submitDecision(decision: "approve" | "reject") {
@@ -153,6 +163,16 @@ export function DecisionCard({
       setRejectionDueDate("");
       setRejectionOwner("");
       setReadiness(payload.readiness);
+
+      if (decision === "approve") {
+        const outcome =
+          payload.assessment.status === "approved_with_exceptions"
+            ? "approved_with_exceptions"
+            : "approved";
+        router.push(`/?decision=${outcome}`);
+        return;
+      }
+
       router.refresh();
     } catch {
       setError("Unable to save decision.");
@@ -176,16 +196,16 @@ export function DecisionCard({
           <button
             type="button"
             onClick={() => setModal("approve")}
-            disabled={!readiness || loading}
-            className="h-10 rounded-md bg-accent px-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+            disabled={!readiness || loading || busy}
+            className="h-10 rounded-md bg-accent px-3 text-sm font-semibold text-white transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:opacity-60"
           >
             Approve
           </button>
           <button
             type="button"
             onClick={() => setModal("reject")}
-            disabled={!readiness || loading}
-            className="h-10 rounded-md border border-line px-3 text-sm font-semibold text-ink hover:bg-panel disabled:opacity-60"
+            disabled={!readiness || loading || busy}
+            className="h-10 rounded-md border border-line px-3 text-sm font-semibold text-ink transition hover:bg-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 disabled:opacity-60"
           >
             Reject
           </button>

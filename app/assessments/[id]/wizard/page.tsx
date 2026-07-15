@@ -32,6 +32,46 @@ export default async function WizardPage({ params }: PageProps) {
     answers: assessment.answers,
     evidenceItems: assessment.evidenceItems
   });
+  const assessmentAnswers = [
+    {
+      id: "assessment-business-owner",
+      section: "vendor_profile",
+      field: "businessOwner",
+      value: assessment.businessOwner ?? ""
+    },
+    {
+      id: "assessment-procurement-stage",
+      section: "vendor_profile",
+      field: "procurementStage",
+      value: assessment.procurementStage ?? "Unknown"
+    },
+    {
+      id: "assessment-vendor-status",
+      section: "vendor_profile",
+      field: "vendorStatus",
+      value: assessment.vendorStatus ?? "Unknown"
+    },
+    {
+      id: "assessment-criticality",
+      section: "business_criticality",
+      field: "criticality",
+      value: assessment.criticality ?? "Unknown"
+    }
+  ];
+  const storedAnswerKeys = new Set(
+    assessment.answers.map((answer) => `${answer.section}.${answer.field}`)
+  );
+  const prefilledAnswers = [
+    ...assessmentAnswers.filter(
+      (answer) => !storedAnswerKeys.has(`${answer.section}.${answer.field}`)
+    ),
+    ...assessment.answers.map((answer) => ({
+      id: answer.id,
+      section: answer.section,
+      field: answer.field,
+      value: answer.value
+    }))
+  ];
 
   return (
     <main className="min-h-screen px-6 py-8">
@@ -50,12 +90,7 @@ export default async function WizardPage({ params }: PageProps) {
         <DynamicWizard
           assessmentId={assessment.id}
           questions={questions}
-          answers={assessment.answers.map((answer) => ({
-            id: answer.id,
-            section: answer.section,
-            field: answer.field,
-            value: answer.value
-          }))}
+          answers={prefilledAnswers}
           evidencePreview={evidencePreview}
         />
       </div>
