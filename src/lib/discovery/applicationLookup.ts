@@ -1,48 +1,11 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { aiIntakeToAnswers } from "@/lib/assessment/aiIntake";
-import { createAuditLog } from "@/lib/audit/auditLog";
-import { db } from "@/lib/db";
-import { generateJson, getLlmModel, getLlmProvider } from "@/lib/llm";
-import { extractJsonObject } from "@/lib/llm/jsonParsing";
-import { buildAiIntakePrompt } from "@/lib/llm/prompts";
-import { aiIntakeOutputSchema } from "@/lib/llm/schemas";
-import { formatZodError } from "@/lib/validations/assessment";
-import { calculateAndPersistRisk } from "@/lib/risk/riskScoring";
+import * as cheerio from "cheerio";
+import { safeFetch } from "@/lib/discovery/safeFetch";
 
-const aiIntakeRequestSchema = z
-  .object({
-    assessmentId: z.string().trim().min(1),
-    description: z.string().trim().min(1).max(5000).optional(),
-    applicationName: z.string().trim().max(200).optional(),
-    vendorName: z.string().trim().max(200).optional()
-  })
-  .strict();
-
-export async function POST(request: Request) {
-  try {
-    const json = await request.json();
-    const input = aiIntakeRequestSchema.parse(json);
-
-    const assessment = await db.assessment.findUnique({
-      where: { id: input.assessmentId }
-    });
-
-    if (!assessment) {
-      return NextResponse.json({ error: "Assessment not found." }, { status: 404 });
-    }
-
-    if (!process.env.GEMINI_API_KEY) {
-      return NextResponse.json(
-        {
-          error:
-            "Gemini API key is missing. Add GEMINI_API_KEY to .env and restart the server."
-        },
-        { status: 400 }
-      );
-    }
-
-    const prompt = buildAkoxã›h‘éì¶»§q«^tlayUrl: string;
+export type ApplicationSearchResult = {
+  id: string;
+  title: string;
+  url: string;
+  displayUrl: string;
   snippet?: string;
 };
 
